@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book a Repair - IT Tech Repair</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-container">
+      <a href="/" class="brand-logo">🔧 IT Repair <span>Hub</span></a>
+      <nav>
+        <a href="/">Services</a>
+        <a href="/book.html" class="active">Book Service</a>
+        <a href="/status.html">Track Booking</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div id="message-banner" class="banner"></div>
+
+    <h1 class="page-title">Service Reservation</h1>
+    <p class="page-subtitle">Fill in your information to schedule your computer repair session.</p>
+
+    <div class="card">
+      <form id="booking-form" novalidate>
+        
+        <div class="form-group">
+          <label for="service_id">Select Service *</label>
+          <select id="service_id" name="service_id">
+            <option value="">-- Choose a Service --</option>
+          </select>
+          <span class="error-text"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="booking_date">Preferred Date *</label>
+          <input type="date" id="booking_date" name="booking_date">
+          <span class="error-text"></span>
+        </div>
+
+        <div class="form-group">
+          <label>Select Time Slot (7:00 AM - 5:00 PM) *</label>
+          <input type="hidden" id="booking_time" name="booking_time">
+          <div id="slots-container" class="slots-grid"></div>
+          <span class="error-text" id="time-error"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="guests">Number of Devices / Attendees *</label>
+          <input type="number" id="guests" name="guests" value="1" min="1">
+          <span class="error-text"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="name">Full Name *</label>
+          <input type="text" id="name" name="name" placeholder="e.g. Juan Cruz">
+          <span class="error-text"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="contact">Contact Number *</label>
+          <input type="tel" id="contact" name="contact" placeholder="e.g. 09171234567">
+          <span class="error-text"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="email">Email Address *</label>
+          <input type="email" id="email" name="email" placeholder="e.g. juan@example.com">
+          <span class="error-text"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="notes">Issue Description / Special Notes</label>
+          <textarea id="notes" name="notes" placeholder="Describe the device fault or issue..."></textarea>
+          <span class="error-text"></span>
+        </div>
+
+        <button type="submit" id="submit-btn" class="btn btn-primary">Submit Booking</button>
+      </form>
+    </div>
+  </main>
+
+  <script src="/js/main.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const form = document.getElementById("booking-form");
+      const serviceSelect = document.getElementById("service_id");
+      const dateInput = document.getElementById("booking_date");
+      const timeInput = document.getElementById("booking_time");
+      const slotsContainer = document.getElementById("slots-container");
+      const submitBtn = document.getElementById("submit-btn");
+
+      // Set min date to today
+      const today = new Date().toISOString().split("T")[0];
+      dateInput.min = today;
+
+      // Populate 30-minute time slots from 07:00 to 17:00
+      function generateTimeSlots() {
+        slotsContainer.innerHTML = "";
+        for (let h = 7; h <= 17; h++) {
+          for (let m of [0, 30]) {
+            if (h === 17 && m === 30) continue; // Cut off at 17:00
+            const hourStr = h.toString().padStart(2, "0");
+            const minStr = m.toString().padStart(2, "0");
+            const timeVal = `${hourStr}:${minStr}`;
+            
+            const slotBtn = document.createElement("button");
+            slotBtn.type = "button";
+            slotBtn.className = "time-slot-btn";
+            slotBtn.textContent = formatTime(timeVal);
+            slotBtn.dataset.time = timeVal;
+
+            slotBtn.addEventListener("click", () => {
+              document.querySelectorAll(".time-slot-btn").forEach(b => b.classList.remove("selected"));
+              slotBtn.classList.add("selected");
+              timeInput.value = timeVal;
+              setFieldValidation(timeInput, true);
+            });
+
+            slotsContainer.appendChild(slotBtn);
+          }
+        }
+      }
+      generateTimeSlots();
+
+      // Fetch Services for Select Field
+      try {
+        const response = await fetch("/api/services");
+        const services = await response.json();
+        if (response.ok) {
+          services.forEach(s => {
+            const opt = document.createElement("option");
+            opt.value = s.id;
+            opt.textContent = `${s.name} (${formatPeso(s.price)})`;
+            serviceSelect.appendChild(opt);
+          });
+
+          // Preselect from URL params if available
+          const urlParams = new URLSearchParams(window.location.search);
+          const preselectedId = urlParams.get("service_id");
+          if (preselectedId) {
+            serviceSelect.value = preselectedId;
+          }
+        }
+      } catch (err) {
+        showBanner("Failed to load services selection.", true);
+      }
+
+      // Form Submission Validation and Handler
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        clearBanner();
+
+        let isValid = true;
+
+        // Service validation
+        if (!serviceSelect.value) {
+          setFieldValidation(serviceSelect, false, "Please select a service.");
+          isValid = false;
+        } else {
+          setFieldValidation(serviceSelect, true);
+        }
+
+        // Date validation
+        if (!dateInput.value) {
+          setFieldValidation(dateInput, false, "Please select a booking date.");
+          isValid = false;
+        } else if (dateInput.value < today) {
+          setFieldValidation(dateInput, false, "Booking date cannot be in the past.");
+          isValid = false;
+        } else {
+          setFieldValidation(dateInput, true);
+        }
+
+        // Time validation
+        if (!timeInput.value) {
+          setFieldValidation(timeInput, false, "Please select a time slot.");
+          isValid = false;
+        } else {
+          setFieldValidation(timeInput, true);
+        }
+
+        // Guests validation
+        const guestsInput = document.getElementById("guests");
+        if (!guestsInput.value || parseInt(guestsInput.value, 10) < 1) {
+          setFieldValidation(guestsInput, false, "Guests/Devices must be at least 1.");
+          isValid = false;
+        } else {
+          setFieldValidation(guestsInput, true);
+        }
+
+        // Name validation
+        const nameInput = document.getElementById("name");
+        if (!nameInput.value.trim()) {
+          setFieldValidation(nameInput, false, "Please enter your name.");
+          isValid = false;
+        } else {
+          setFieldValidation(nameInput, true);
+        }
+
+        // Contact validation
+        const contactInput = document.getElementById("contact");
+        if (!contactInput.value.trim()) {
+          setFieldValidation(contactInput, false, "Please enter a contact number.");
+          isValid = false;
+        } else {
+          setFieldValidation(contactInput, true);
+        }
+
+        // Email validation
+        const emailInput = document.getElementById("email");
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailInput.value.trim() || !emailRegex.test(emailInput.value.trim())) {
+          setFieldValidation(emailInput, false, "Please enter a valid email address.");
+          isValid = false;
+        } else {
+          setFieldValidation(emailInput, true);
+        }
+
+        if (!isValid) return;
+
+        // Submit API Call
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Submitting Booking...";
+
+        const payload = {
+          service_id: serviceSelect.value,
+          booking_date: dateInput.value,
+          booking_time: timeInput.value,
+          guests: parseInt(guestsInput.value, 10),
+          name: nameInput.value.trim(),
+          contact: contactInput.value.trim(),
+          email: emailInput.value.trim(),
+          notes: document.getElementById("notes").value.trim()
+        };
+
+        try {
+          const res = await fetch("/api/bookings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            throw new Error(data.error || "Failed to submit booking.");
+          }
+
+          // Redirect to Confirmation Page
+          window.location.href = `/confirmation.html?reference=${data.reference}`;
+        } catch (err) {
+          showBanner(err.message, true);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Submit Booking";
+        }
+      });
+    });
+  </script>
+</body>
+</html>

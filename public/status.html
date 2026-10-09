@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Check Booking Status - IT Tech Repair</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .summary-list {
+      list-style: none;
+    }
+    .summary-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: var(--spacing-sm) 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .summary-list li strong {
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-container">
+      <a href="/" class="brand-logo">🔧 IT Repair <span>Hub</span></a>
+      <nav>
+        <a href="/">Services</a>
+        <a href="/book.html">Book Service</a>
+        <a href="/status.html" class="active">Track Booking</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div id="message-banner" class="banner"></div>
+
+    <h1 class="page-title">Track Your Booking</h1>
+    <p class="page-subtitle">Enter your booking reference code to view status and details.</p>
+
+    <div class="card">
+      <form id="search-form" novalidate>
+        <div class="form-group">
+          <label for="reference-input">Booking Reference Number *</label>
+          <input type="text" id="reference-input" placeholder="e.g. BK1A2B3C" required>
+          <span class="error-text"></span>
+        </div>
+        <button type="submit" id="search-btn" class="btn btn-primary">Check Status</button>
+      </form>
+    </div>
+
+    <div id="loading-state" class="state-box" style="display: none;">Searching for booking...</div>
+
+    <div id="details-card" class="card" style="display: none;">
+      <h2 style="margin-bottom: var(--spacing-md);">Booking Details</h2>
+      <ul class="summary-list">
+        <li><strong>Reference:</strong> <span id="det-ref"></span></li>
+        <li><strong>Status:</strong> <span id="det-status"></span></li>
+        <li><strong>Service:</strong> <span id="det-service"></span></li>
+        <li><strong>Price:</strong> <span id="det-price"></span></li>
+        <li><strong>Date:</strong> <span id="det-date"></span></li>
+        <li><strong>Time:</strong> <span id="det-time"></span></li>
+        <li><strong>Name:</strong> <span id="det-name"></span></li>
+        <li><strong>Contact:</strong> <span id="det-contact"></span></li>
+        <li><strong>Email:</strong> <span id="det-email"></span></li>
+        <li><strong>Devices/Guests:</strong> <span id="det-guests"></span></li>
+        <li><strong>Notes:</strong> <span id="det-notes"></span></li>
+      </ul>
+    </div>
+  </main>
+
+  <script src="/js/main.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const searchForm = document.getElementById("search-form");
+      const refInput = document.getElementById("reference-input");
+      const searchBtn = document.getElementById("search-btn");
+      const loadingState = document.getElementById("loading-state");
+      const detailsCard = document.getElementById("details-card");
+
+      searchForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        clearBanner();
+        detailsCard.style.display = "none";
+
+        const refValue = refInput.value.trim().toUpperCase();
+
+        if (!refValue) {
+          setFieldValidation(refInput, false, "Please enter a reference number.");
+          return;
+        }
+        setFieldValidation(refInput, true);
+
+        searchBtn.disabled = true;
+        searchBtn.textContent = "Searching...";
+        loadingState.style.display = "block";
+
+        try {
+          const response = await fetch(`/api/bookings/${refValue}`);
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || "No booking found with this reference.");
+          }
+
+          loadingState.style.display = "none";
+          detailsCard.style.display = "block";
+
+          document.getElementById("det-ref").textContent = data.reference;
+          document.getElementById("det-service").textContent = data.service_name;
+          document.getElementById("det-price").textContent = formatPeso(data.service_price);
+          document.getElementById("det-date").textContent = formatDate(data.booking_date);
+          document.getElementById("det-time").textContent = formatTime(data.booking_time);
+          document.getElementById("det-name").textContent = data.name;
+          document.getElementById("det-contact").textContent = data.contact;
+          document.getElementById("det-email").textContent = data.email;
+          document.getElementById("det-guests").textContent = data.guests;
+          document.getElementById("det-notes").textContent = data.notes || "None";
+
+          const statusContainer = document.getElementById("det-status");
+          statusContainer.innerHTML = "";
+          const badge = document.createElement("span");
+          badge.className = `badge badge-${data.status}`;
+          badge.textContent = data.status;
+          statusContainer.appendChild(badge);
+
+        } catch (err) {
+          loadingState.style.display = "none";
+          showBanner(err.message, true);
+        } finally {
+          searchBtn.disabled = false;
+          searchBtn.textContent = "Check Status";
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Booking Confirmation - IT Tech Repair</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .ref-box {
+      text-align: center;
+      background-color: rgba(13, 148, 136, 0.08);
+      border: 2px dashed var(--primary-color);
+      border-radius: var(--radius-md);
+      padding: var(--spacing-lg);
+      margin-bottom: var(--spacing-lg);
+    }
+    .ref-number {
+      font-size: 2.25rem;
+      font-weight: 800;
+      color: var(--primary-color);
+      letter-spacing: 2px;
+      margin: var(--spacing-xs) 0;
+    }
+    .summary-list {
+      list-style: none;
+    }
+    .summary-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: var(--spacing-sm) 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .summary-list li strong {
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-container">
+      <a href="/" class="brand-logo">🔧 IT Repair <span>Hub</span></a>
+      <nav>
+        <a href="/">Services</a>
+        <a href="/book.html">Book Service</a>
+        <a href="/status.html">Track Booking</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div id="message-banner" class="banner"></div>
+
+    <div id="loading-state" class="state-box">Loading booking summary...</div>
+
+    <div id="confirmation-content" style="display: none;">
+      <h1 class="page-title">Booking Submitted!</h1>
+      <p class="page-subtitle">Your service request has been received and is pending confirmation.</p>
+
+      <div class="ref-box">
+        <p>Your Reference Code</p>
+        <div id="ref-display" class="ref-number">------</div>
+        <button id="copy-btn" class="btn btn-secondary" style="max-width: 200px; margin-top: var(--spacing-sm);">
+          Copy Reference
+        </button>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-bottom: var(--spacing-md);">Reservation Summary</h2>
+        <ul class="summary-list">
+          <li><strong>Service:</strong> <span id="sum-service"></span></li>
+          <li><strong>Price:</strong> <span id="sum-price"></span></li>
+          <li><strong>Date:</strong> <span id="sum-date"></span></li>
+          <li><strong>Time:</strong> <span id="sum-time"></span></li>
+          <li><strong>Devices/Guests:</strong> <span id="sum-guests"></span></li>
+          <li><strong>Name:</strong> <span id="sum-name"></span></li>
+          <li><strong>Contact:</strong> <span id="sum-contact"></span></li>
+          <li><strong>Email:</strong> <span id="sum-email"></span></li>
+          <li><strong>Status:</strong> <span id="sum-status"></span></li>
+        </ul>
+      </div>
+
+      <a href="/" class="btn btn-primary">Return to Home</a>
+    </div>
+  </main>
+
+  <script src="/js/main.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const reference = urlParams.get("reference");
+
+      if (!reference) {
+        showBanner("No booking reference provided.", true);
+        document.getElementById("loading-state").style.display = "none";
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/bookings/${reference}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Booking not found.");
+        }
+
+        document.getElementById("loading-state").style.display = "none";
+        document.getElementById("confirmation-content").style.display = "block";
+
+        document.getElementById("ref-display").textContent = data.reference;
+        document.getElementById("sum-service").textContent = data.service_name;
+        document.getElementById("sum-price").textContent = formatPeso(data.service_price);
+        document.getElementById("sum-date").textContent = formatDate(data.booking_date);
+        document.getElementById("sum-time").textContent = formatTime(data.booking_time);
+        document.getElementById("sum-guests").textContent = data.guests;
+        document.getElementById("sum-name").textContent = data.name;
+        document.getElementById("sum-contact").textContent = data.contact;
+        document.getElementById("sum-email").textContent = data.email;
+        
+        const statusBadge = document.createElement("span");
+        statusBadge.className = `badge badge-${data.status}`;
+        statusBadge.textContent = data.status;
+        document.getElementById("sum-status").appendChild(statusBadge);
+
+        // Copy button handler
+        document.getElementById("copy-btn").addEventListener("click", () => {
+          navigator.clipboard.writeText(data.reference).then(() => {
+            showBanner("Reference copied to clipboard!", false);
+          });
+        });
+
+      } catch (err) {
+        document.getElementById("loading-state").style.display = "none";
+        showBanner(err.message, true);
+      }
+    });
+  </script>
+</body>
+</html>

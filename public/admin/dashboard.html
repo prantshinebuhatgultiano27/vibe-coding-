@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - IT Tech Repair</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+  <header>
+    <div class="header-container">
+      <a href="/admin/dashboard.html" class="brand-logo">🔧 IT Repair <span>Admin</span></a>
+      <div class="admin-header-actions">
+        <button id="logout-btn" class="btn btn-secondary btn-sm">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1200px;">
+    <div id="message-banner" class="banner"></div>
+
+    <h1 class="page-title">Booking Management</h1>
+    <p class="page-subtitle">View, confirm, cancel, or remove customer repair appointments.</p>
+
+    <!-- Summary Metrics -->
+    <div class="summary-cards-grid">
+      <div class="stat-card">
+        <span class="stat-label">Total Bookings</span>
+        <span id="stat-total" class="stat-value">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Pending</span>
+        <span id="stat-pending" class="stat-value" style="color: #d97706;">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Confirmed</span>
+        <span id="stat-confirmed" class="stat-value" style="color: #15803d;">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Cancelled</span>
+        <span id="stat-cancelled" class="stat-value" style="color: #b91c1c;">0</span>
+      </div>
+    </div>
+
+    <!-- Controls (Search & Filter) -->
+    <div class="controls-bar">
+      <div class="search-filter-group">
+        <input type="text" id="search-input" placeholder="Search by reference, name, email...">
+        <select id="status-filter">
+          <option value="all">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Loading and Empty States -->
+    <div id="loading-state" class="state-box">Loading all bookings...</div>
+    <div id="empty-state" class="state-box" style="display: none;">No bookings found.</div>
+
+    <!-- Scrollable Data Table Container -->
+    <div id="table-container" class="table-responsive" style="display: none;">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Reference</th>
+            <th>Service</th>
+            <th>Customer</th>
+            <th>Contact</th>
+            <th>Date & Time</th>
+            <th>Devices</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="bookings-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="/js/main.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      let allBookings = [];
+
+      const loadingState = document.getElementById("loading-state");
+      const emptyState = document.getElementById("empty-state");
+      const tableContainer = document.getElementById("table-container");
+      const bookingsTbody = document.getElementById("bookings-tbody");
+      const searchInput = document.getElementById("search-input");
+      const statusFilter = document.getElementById("status-filter");
+      const logoutBtn = document.getElementById("logout-btn");
+
+      // Fetch All Bookings
+      async function loadBookings() {
+        clearBanner();
+        try {
+          const response = await fetch("/api/admin/bookings", {
+            credentials: "same-origin"
+          });
+
+          if (response.status === 401) {
+            window.location.href = "/admin/index.html";
+            return;
+          }
+
+          if (!response.ok) {
+            throw new Error("Failed to load administrative bookings list.");
+          }
+
+          allBookings = await response.json();
+          updateSummaryStats(allBookings);
+          renderBookings();
+        } catch (err) {
+          loadingState.style.display = "none";
+          showBanner(err.message, true);
+        }
+      }
+
+      // Update Summary Counts
+      function updateSummaryStats(bookings) {
+        document.getElementById("stat-total").textContent = bookings.length;
+        document.getElementById("stat-pending").textContent = bookings.filter(b => b.status === "pending").length;
+        document.getElementById("stat-confirmed").textContent = bookings.filter(b => b.status === "confirmed").length;
+        document.getElementById("stat-cancelled").textContent = bookings.filter(b => b.status === "cancelled").length;
+      }
+
+      // Render Table Rows with Search and Filter applied
+      function renderBookings() {
+        const query = searchInput.value.toLowerCase().trim();
+        const selectedStatus = statusFilter.value;
+
+        const filtered = allBookings.filter(b => {
+          const matchesStatus = selectedStatus === "all" || b.status === selectedStatus;
+          const matchesSearch =
+            b.reference.toLowerCase().includes(query) ||
+            b.name.toLowerCase().includes(query) ||
+            b.email.toLowerCase().includes(query) ||
+            b.contact.toLowerCase().includes(query) ||
+            b.service_name.toLowerCase().includes(query);
+
+          return matchesStatus && matchesSearch;
+        });
+
+        loadingState.style.display = "none";
+
+        if (filtered.length === 0) {
+          tableContainer.style.display = "none";
+          emptyState.style.display = "block";
+          return;
+        }
+
+        emptyState.style.display = "none";
+        tableContainer.style.display = "block";
+        bookingsTbody.innerHTML = "";
+
+        filtered.forEach(booking => {
+          const tr = document.createElement("tr");
+
+          tr.innerHTML = `
+            <td><strong>${booking.reference}</strong></td>
+            <td>${booking.service_name}<br><small style="color:var(--text-muted);">${formatPeso(booking.service_price)}</small></td>
+            <td>${booking.name}<br><small style="color:var(--text-muted);">${booking.email}</small></td>
+            <td>${booking.contact}</td>
+            <td>${formatDate(booking.booking_date)}<br><small style="color:var(--text-muted);">${formatTime(booking.booking_time)}</small></td>
+            <td style="text-align: center;">${booking.guests}</td>
+            <td><span class="badge badge-${booking.status}">${booking.status}</span></td>
+            <td>
+              <div class="action-buttons">
+                ${booking.status !== "confirmed" ? `<button class="btn btn-success btn-sm confirm-btn" data-id="${booking.id}">Confirm</button>` : ""}
+                ${booking.status !== "cancelled" ? `<button class="btn btn-warning btn-sm cancel-btn" data-id="${booking.id}">Cancel</button>` : ""}
+                <button class="btn btn-danger btn-sm delete-btn" data-id="${booking.id}">Delete</button>
+              </div>
+            </td>
+          `;
+
+          bookingsTbody.appendChild(tr);
+        });
+
+        attachActionListeners();
+      }
+
+      // Event listeners for action buttons in table rows
+      function attachActionListeners() {
+        // Confirm Button
+        document.querySelectorAll(".confirm-btn").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.dataset.id;
+            await updateBookingStatus(id, "confirm");
+          });
+        });
+
+        // Cancel Button
+        document.querySelectorAll(".cancel-btn").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.dataset.id;
+            await updateBookingStatus(id, "cancel");
+          });
+        });
+
+        // Delete Button with confirmation check
+        document.querySelectorAll(".delete-btn").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.dataset.id;
+            if (confirm("Are you sure you want to permanently delete this booking?")) {
+              await deleteBooking(id);
+            }
+          });
+        });
+      }
+
+      // API Call: Confirm / Cancel
+      async function updateBookingStatus(id, action) {
+        clearBanner();
+        try {
+          const response = await fetch(`/api/admin/bookings/${id}/${action}`, {
+            method: "PATCH",
+            credentials: "same-origin"
+          });
+
+          if (response.status === 401) {
+            window.location.href = "/admin/index.html";
+            return;
+          }
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || `Failed to ${action} booking.`);
+          }
+
+          showBanner(`Booking status updated to ${action}ed successfully!`, false);
+          await loadBookings();
+        } catch (err) {
+          showBanner(err.message, true);
+        }
+      }
+
+      // API Call: Delete
+      async function deleteBooking(id) {
+        clearBanner();
+        try {
+          const response = await fetch(`/api/admin/bookings/${id}`, {
+            method: "DELETE",
+            credentials: "same-origin"
+          });
+
+          if (response.status === 401) {
+            window.location.href = "/admin/index.html";
+            return;
+          }
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || "Failed to delete booking.");
+          }
+
+          showBanner("Booking deleted successfully.", false);
+          await loadBookings();
+        } catch (err) {
+          showBanner(err.message, true);
+        }
+      }
+
+      // Logout handler
+      logoutBtn.addEventListener("click", async () => {
+        try {
+          await fetch("/api/admin/logout", {
+            method: "POST",
+            credentials: "same-origin"
+          });
+          window.location.href = "/admin/index.html";
+        } catch (err) {
+          showBanner("Logout failed. Please try again.", true);
+        }
+      });
+
+      // Filter and Search input listeners
+      searchInput.addEventListener("input", renderBookings);
+      statusFilter.addEventListener("change", renderBookings);
+
+      // Initial Load
+      loadBookings();
+    });
+  </script>
+</body>
+</html>

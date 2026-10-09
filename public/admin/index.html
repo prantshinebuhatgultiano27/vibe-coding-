@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IT Tech Repair - Available Services</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-container">
+      <a href="/" class="brand-logo">🔧 IT Repair <span>Hub</span></a>
+      <nav>
+        <a href="/" class="active">Services</a>
+        <a href="/book.html">Book Service</a>
+        <a href="/status.html">Track Booking</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div id="message-banner" class="banner"></div>
+
+    <h1 class="page-title">Computer Repair & Diagnostics</h1>
+    <p class="page-subtitle">Select an available activity service below to get started with your reservation.</p>
+
+    <div id="loading-state" class="state-box">Loading repair services...</div>
+    <div id="empty-state" class="state-box" style="display: none;">No services are currently available.</div>
+    <div id="services-grid" class="cards-grid"></div>
+  </main>
+
+  <script src="/js/main.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const servicesGrid = document.getElementById("services-grid");
+      const loadingState = document.getElementById("loading-state");
+      const emptyState = document.getElementById("empty-state");
+
+      try {
+        const response = await fetch("/api/services");
+        if (!response.ok) {
+          throw new Error("Failed to load services. Please try again later.");
+        }
+
+        const services = await response.json();
+        loadingState.style.display = "none";
+
+        if (!services || services.length === 0) {
+          emptyState.style.display = "block";
+          return;
+        }
+
+        services.forEach((service) => {
+          const card = document.createElement("div");
+          card.className = "card service-card";
+          card.innerHTML = `
+            <div>
+              <h2 class="service-title">${service.name}</h2>
+              <p class="service-desc">${service.description}</p>
+            </div>
+            <div>
+              <div class="service-price">${formatPeso(service.price)}</div>
+              <a href="/book.html?service_id=${service.id}" class="btn btn-primary">Book now</a>
+            </div>
+          `;
+          servicesGrid.appendChild(card);
+        });
+      } catch (err) {
+        loadingState.style.display = "none";
+        showBanner(err.message, true);
+      }
+    });
+  </script>
+</body>
+</html>
